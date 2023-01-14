@@ -1,0 +1,89 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel MetaBallShader
+
+#define THREADS_X 16
+#define THREADS_Y 16
+#define THREADS_Z 1
+
+//Settings
+int Width;
+int Height;
+int BallCount;
+float Border;
+Buffer<int> lightColor;
+Buffer<int> darkColor;
+
+//MetaBalls
+StructuredBuffer<int> BallY;
+StructuredBuffer<int> BallX;
+StructuredBuffer<float> BallR;
+
+//Output
+RWStructuredBuffer<int> Output;
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void MetaBallShader(uint3 id : SV_DispatchThreadID)
+{
+    int sWidth = Width / THREADS_X + 1;
+    int sHeight = Height / THREADS_Y + 1;
+    
+    //Get x range
+    int pixelStartX = id.x * sWidth;
+    int pixelEndX = pixelStartX + sWidth;
+    if (pixelEndX > Width)
+    {
+        pixelEndX = Width;
+    }
+    
+    //Get y range
+    int pixelStartY = id.y * sHeight;
+    int pixelEndY = pixelStartY + sHeight;
+    if (pixelEndY > Height)
+    {
+        pixelEndY = Height;
+    }
+    
+    //foreach pixel in the group
+    float influence;
+    int index;
+    for (int px = pixelStartX; px < pixelEndX; px++)
+    {
+        for (int py = pixelStartY; py < pixelEndY; py++)
+        {
+            //foreach ball
+            influence = 0.f;
+            for (int b = 0; b < BallCount; b++)
+            {
+                //Get influence to pixel
+                if (px == BallX[b] && py == BallY[b])
+                {
+                    influence += BallR[b];
+                }
+                else
+                {
+                    influence += 1.f / (
+                        pow(((BallX[b] - px) / BallR[b]), 2.f) +
+                        pow(((BallY[b] - py) / BallR[b]), 2.f)
+                    );
+                }
+            }
+            
+            index = (px * Height + py) * 3;
+
+            //light color
+            if (influence >= Border)
+            {
+                Output[index] = lightColor[0];
+                Output[index + 1] = lightColor[1];
+                Output[index + 2] = lightColor[2];
+            }
+            //dark color
+            else
+            {
+                Output[index] = darkColor[0];
+                Output[index + 1] = darkColor[1];
+                Output[index + 2] = darkColor[2];
+            }
+        }
+    }
+}
